@@ -4,11 +4,15 @@
   var KC = window.KC, CT = KC.content, M = KC.media, S = KC.store, P = KC.pieces;
   var appEl = document.getElementById('app');
   var cleanup = null;
+  var screen = '';        // איזה מסך תפריט מוצג עכשיו (ריק בזמן שיעור או משחק)
+  var parentsOpen = null; // חלון אזור ההורים, אם הוא פתוח
+  var Y = KC.sync;
   var AVATARS = ['🦁', '🐯', '🦊', '🐼', '🐸', '🦄', '🐶', '🐱', '🐵', '🐰', '🐙', '🦖'];
 
   KC.mount = function (node, onLeave) {
     if (cleanup) { try { cleanup(); } catch (e) { /* כלום */ } }
     cleanup = onLeave || null;
+    screen = '';
     M.stop();
     appEl.innerHTML = '';
     appEl.appendChild(node);
@@ -16,6 +20,29 @@
   };
 
   function applySettings() { M.set(S.data.settings); }
+
+  /* ---------- סנכרון בין מכשירים ---------- */
+  function syncText() {
+    var s = Y.state();
+    if (s === 'busy') return '☁️ מסנכרן…';
+    if (s === 'offline') return '☁️ אין חיבור לשרת כרגע. ההתקדמות נשמרת במכשיר ותסונכרן כשהחיבור יחזור.';
+    if (!Y.lastAt()) return '☁️ מחובר';
+    var d = new Date(Y.lastAt()), mm = d.getMinutes();
+    return '☁️ מסונכרן · ' + d.getHours() + ':' + (mm < 10 ? '0' : '') + mm;
+  }
+  function paintSync() {
+    var t = syncText();
+    document.querySelectorAll('[data-sync-status]').forEach(function (el) { el.textContent = t; });
+  }
+  // הגיעה התקדמות ממכשיר אחר: מרעננים את המסך המוצג (לא באמצע שיעור או משחק)
+  function refresh() {
+    if (parentsOpen) { parentsOpen.close(); return parentsModal(); }
+    if (document.querySelector('.modal-wrap')) return;
+    if (screen === 'profiles') profilesScreen();
+    else if (screen === 'home') homeScreen();
+    else if (screen === 'map') mapScreen();
+    else if (screen === 'puzzles') puzzlesScreen();
+  }
 
   /* ---------- מה פתוח ומה נעול ---------- */
   var flat = [];
@@ -57,7 +84,8 @@
         '<span class="pname">' + KC.esc(p.name) + '</span><span class="pstars">⭐ ' + S.totalStars(p) + '</span>' +
         '<span class="pprog">' + lessonsDone(p) + ' מתוך ' + flat.length + ' שיעורים</span></button>';
     });
-    html += '<button class="profile-card add" data-add="1"><span class="avatar">➕</span><span class="pname">שחקן חדש</span></button></div></div>';
+    html += '<button class="profile-card add" data-add="1"><span class="avatar">➕</span><span class="pname">שחקן חדש</span></button></div>' +
+      (Y.linked() ? '<p class="sync-line" data-sync-status>' + KC.esc(syncText()) + '</p>' : '') + '</div>';
     var root = KC.el(html);
     root.addEventListener('click', function (e) {
       var c = e.target.closest('.profile-card');
@@ -69,6 +97,7 @@
       homeScreen(true);
     });
     KC.mount(root);
+    screen = 'profiles';
   }
 
   function newProfile() {
@@ -153,6 +182,7 @@
       else KC.runGame({ mode: c.k, onExit: function () { homeScreen(); } });
     });
     KC.mount(root);
+    screen = 'home';
     if (greet) M.say(hello);
   }
 
@@ -201,6 +231,7 @@
       KC.runLesson(CT.lessons[id], { onExit: mapScreen, onDone: mapScreen });
     });
     KC.mount(root);
+    screen = 'map';
     var cur = root.querySelector('.node.current');
     if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'center' });
   }
@@ -227,6 +258,7 @@
       KC.runLesson(p, { onExit: puzzlesScreen, onDone: puzzlesScreen });
     });
     KC.mount(root);
+    screen = 'puzzles';
   }
 
   /* ---------- הגדרות ואזור הורים ---------- */
@@ -272,11 +304,46 @@
       return '<li><span>' + p.avatar + ' ' + KC.esc(p.name) + '</span><span>' + n + '/' + flat.length + ' שיעורים · ⭐ ' + S.totalStars(p) + '</span>' +
         '<button class="link danger" data-act="del" data-id="' + p.id + '">מחיקה</button></li>';
     }).join('');
+    var syncHTML;
+    if (!Y.enabled) syncHTML = '<p class="note">ההתקדמות נשמרת במכשיר הזה בלבד.</p>';
+    else if (Y.linked()) {
+      syncHTML = '<div class="sync-box"><b>סנכרון בין מכשירים: מחובר ✅</b><p class="note" data-sync-status>' + KC.esc(syncText()) + '</p>' +
+        '<p class="note">ההתקדמות של הילדים מופיעה בכל מכשיר שחובר עם קוד המשפחה.</p>' +
+        '<div class="sync-row"><button class="link" data-act="sync-now">סנכרון עכשיו</button><button class="link danger" data-act="unlink">ניתוק המכשיר</button></div></div>';
+    } else {
+      syncHTML = '<div class="sync-box"><b>☁️ סנכרון בין מכשירים</b>' +
+        '<p class="note">' + (Y.needsCode() ? 'קוד המשפחה הוחלף. הקלידו את הקוד החדש כדי להתחבר שוב.' : 'הקלידו את קוד המשפחה בכל מכשיר, וההתקדמות של הילדים תופיע בכולם.') + '</p>' +
+        '<div class="sync-row"><input class="name-input sync-code" type="text" maxlength="40" placeholder="קוד משפחה" autocomplete="off" autocapitalize="none" spellcheck="false">' +
+        '<button class="btn primary" data-act="link">חיבור</button></div><p class="note" data-link-msg></p></div>';
+    }
     var html = '<h2>אזור הורים</h2><ul class="parent-list">' + (rows || '<li>אין עדיין שחקנים</li>') + '</ul>' +
       toggleRow('unlockAll', '🔓 לפתוח את כל השלבים') + toggleRow('helper', '🛡️ עוזר סכנות במשחק') +
-      '<p class="note">' + voiceText + '</p><p class="note">ההתקדמות נשמרת במכשיר הזה בלבד.</p>' +
+      '<p class="note">' + voiceText + '</p>' + syncHTML +
       '<div class="row"><button class="btn primary" data-act="close">סגירה</button></div>';
-    KC.modal(html, function (act, m, target) {
+    var linking = false;
+    parentsOpen = KC.modal(html, function (act, m, target) {
+      if (act === 'link') {
+        var input = m.el.querySelector('.sync-code'), msg = m.el.querySelector('[data-link-msg]');
+        var code = input.value.trim();
+        if (linking) return;
+        if (!code) { input.classList.add('shake'); setTimeout(function () { input.classList.remove('shake'); }, 500); return; }
+        linking = true;
+        msg.textContent = 'מתחבר…';
+        Y.link(code, function (res) {
+          if (parentsOpen !== m) return;
+          if (res === 'waking') { msg.textContent = 'מעיר את השרת… זה יכול לקחת עד דקה.'; return; }
+          linking = false;
+          if (res === 'ok') { m.close(); parentsModal(); }
+          else msg.textContent = res === 'badcode' ? '❌ הקוד לא נכון. נסו שוב.' : res === 'wait' ? '⏳ יותר מדי ניסיונות. נסו שוב בעוד 10 דקות.' : '⚠️ אין חיבור לשרת כרגע. נסו שוב בעוד דקה.';
+        });
+        return;
+      }
+      if (act === 'sync-now') { Y.now(); return; }
+      if (act === 'unlink') {
+        if (target.getAttribute('data-sure') !== '1') { target.setAttribute('data-sure', '1'); target.textContent = 'לנתק? ההתקדמות תישאר במכשיר. הקישו שוב'; return; }
+        Y.unlink(); m.close(); parentsModal();
+        return;
+      }
       if (act.indexOf('t-') === 0) {
         var k = act.slice(2);
         S.data.settings[k] = !S.data.settings[k];
@@ -286,14 +353,17 @@
         var id = target.getAttribute('data-id');
         var p = S.data.profiles.filter(function (x) { return x.id === id; })[0];
         if (target.getAttribute('data-sure') !== '1') { target.setAttribute('data-sure', '1'); target.textContent = 'למחוק את ' + p.name + '? הקישו שוב'; return; }
-        S.data.profiles = S.data.profiles.filter(function (x) { return x.id !== id; });
-        if (S.data.current === id) S.data.current = null;
-        S.save();
+        S.removeProfile(id);
         m.close(); parentsModal();
       } else if (act === 'close') { m.close(); homeScreen(); }
     }, 'wide');
+    var opened = parentsOpen, shut = opened.close;
+    opened.close = function () { if (parentsOpen === opened) parentsOpen = null; shut(); };
   }
 
+  Y.onChange = refresh;
+  Y.onState = paintSync;
+  Y.start();
   applySettings();
   // תמיד פותחים ב"מי משחק היום?", כדי שכל ילד ייכנס לשם שלו ולא ימשיך בטעות אצל אחיו
   profilesScreen();

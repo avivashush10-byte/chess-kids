@@ -52,7 +52,9 @@ attempt('הפרדה בין ילדים', () => {
 attempt('ניקוי', () => {
   pick('a'); S.setResume('rook', 0, 0);
   eq(S.resume('rook'), null, 'חזרה לצעד הראשון מוחקת את המקום השמור');
-  eq('rook' in saved().profiles[0].resume, false, 'נמחק גם מהאחסון');
+  eq(saved().profiles[0].resume.rook.i, 0, 'באחסון נשאר סימון "נוקה" עם זמן (בשביל הסנכרון בין מכשירים)');
+  S.setResume('never-started', 0, 0);
+  eq('never-started' in saved().profiles[0].resume, false, 'שיעור שלא נקטע אף פעם לא משאיר סימון מיותר');
   eq(S.resume('rook', S.data.profiles[1]).i, 1, 'המקום של ילד ב נשאר');
 });
 attempt('פרופיל ישן', () => {
@@ -67,6 +69,20 @@ attempt('בלי ילד נבחר', () => {
   pick(null);
   S.setResume('rook', 3, 0);
   eq(S.resume('rook'), null, 'בלי ילד נבחר לא נשמר כלום ואין שגיאה');
+});
+
+console.log('== מחיקת ילד ושמירה שקטה ==');
+attempt('מחיקה', () => {
+  let touched = 0;
+  globalThis.KC.sync = { touch: () => { touched++; } };
+  S.removeProfile('b');
+  eq(S.data.profiles.some((p) => p.id === 'b'), false, 'הילד נמחק');
+  eq(typeof saved().deleted.b, 'number', 'נשמר סימון מחיקה עם זמן');
+  eq(touched, 1, 'שמירה רגילה מבקשת סנכרון');
+  S.save(true);
+  eq(touched, 1, 'שמירה שקטה (של הסנכרון עצמו) לא מבקשת סנכרון נוסף');
+  pick('a'); S.removeProfile('a');
+  eq(S.data.current, null, 'מחיקת הילד הנבחר מבטלת את הבחירה');
 });
 
 console.log(errors ? `\n${errors} ERROR(S)` : '\nALL OK');

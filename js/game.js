@@ -17,7 +17,7 @@
       '</div>');
 
     var s, hist, last, captured, sel = null, moves = [], busy = false, thinking = false, over = false;
-    var aiTimer = null, hintLevel = 0, lastText = '', firstTurn = true;
+    var aiTimer = null, endTimer = null, hintLevel = 0, lastText = '', firstTurn = true;
     var helper = KC.store.data.settings.helper;
     var view = new KC.BoardView(root.querySelector('.board'), onTap);
     var actions = root.querySelector('.actions'), textEl = root.querySelector('.say-text');
@@ -36,7 +36,7 @@
       var x = e.target.closest('[data-x]');
       if (!x) return;
       var k = x.getAttribute('data-x');
-      if (k === 'exit') { clearTimeout(aiTimer); opts.onExit(); }
+      if (k === 'exit') { clearTimeout(aiTimer); clearTimeout(endTimer); opts.onExit(); }
       else if (k === 'speak') M.say(lastText);
       else if (k === 'helper') {
         helper = !helper;
@@ -54,7 +54,7 @@
       actions.appendChild(b);
     }
     btn('💡 רמז', 'ghost', hint);
-    btn('↩️ ביטול', 'ghost', undo);
+    btn('↩️ מהלך אחורה', 'ghost', undo);
     btn('🔄 חדש', 'ghost', function () {
       if (!hist.length) return;
       KC.modal('<div class="big-emoji">🔄</div><h2>להתחיל משחק חדש?</h2><div class="row"><button class="btn ghost" data-act="no">לא</button><button class="btn primary" data-act="yes">כן</button></div>',
@@ -63,6 +63,7 @@
 
     function reset() {
       clearTimeout(aiTimer);
+      clearTimeout(endTimer);
       s = C.fromFEN(pawns ? PAWNS : C.START);
       hist = []; last = null; captured = { w: [], b: [] };
       sel = null; moves = []; busy = false; thinking = false; over = false; firstTurn = true;
@@ -159,9 +160,12 @@
       });
     }
 
+    // מחזיר מהלך אחורה. מול המחשב חוזרים שני מהלכים (שלו ושלכם), כדי שהתור יחזור אליכם.
     function undo() {
-      if (busy || !hist.length) return;
+      if (busy) return;
+      if (!hist.length) { M.sfx('bad'); setText('עוד לא שיחקתם מהלך, אז אין מה להחזיר.'); return; }
       clearTimeout(aiTimer);
+      clearTimeout(endTimer);
       thinking = false; over = false;
       var h = hist.pop();
       if (!friend && h.s.turn !== 'w' && hist.length) h = hist.pop();
@@ -267,14 +271,14 @@
         KC.store.addWin(pawns ? 'pawns' : 'ai' + level);
       } else { emoji = '💪'; head = 'הפעם המחשב ניצח'; body = (text ? text + ' ' : '') + 'לא נורא, ככה לומדים! ננסה שוב?'; M.sfx('lose'); }
       setText(head + ' ' + body);
-      setTimeout(function () {
+      endTimer = setTimeout(function () {
         KC.modal('<div class="big-emoji">' + emoji + '</div><h2>' + head + '</h2><p>' + body + '</p>' +
           '<div class="row"><button class="btn ghost" data-act="home">🏠 הביתה</button><button class="btn primary big" data-act="again">🔄 משחק חדש</button></div>',
           function (act, m) { m.close(); if (act === 'again') reset(); else opts.onExit(); });
       }, 900);
     }
 
-    KC.mount(root, function () { clearTimeout(aiTimer); });
+    KC.mount(root, function () { clearTimeout(aiTimer); clearTimeout(endTimer); });
     drawHelper();
     reset();
   };

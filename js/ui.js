@@ -18,12 +18,24 @@
   var data = null;
   try { data = JSON.parse(localStorage.getItem(KEY)); } catch (e) { data = null; }
   if (!data || !Array.isArray(data.profiles)) data = { profiles: [], current: null, settings: {} };
+  if (!data.settings || typeof data.settings !== 'object') data.settings = {};
+  if (!data.deleted || typeof data.deleted !== 'object') data.deleted = {}; // ילדים שנמחקו (כדי שלא יחזרו ממכשיר אחר)
   var defaults = { sound: true, voice: true, helper: true, unlockAll: false };
   Object.keys(defaults).forEach(function (k) { if (data.settings[k] === undefined) data.settings[k] = defaults[k]; });
 
   KC.store = {
     data: data,
-    save: function () { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* מצב פרטי - לא נשמר */ } },
+    // quiet = שמירה במכשיר בלבד, בלי לבקש סנכרון (משמש את הסנכרון עצמו)
+    save: function (quiet) {
+      try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* מצב פרטי - לא נשמר */ }
+      if (!quiet && KC.sync) KC.sync.touch();
+    },
+    removeProfile: function (id) {
+      data.profiles = data.profiles.filter(function (x) { return x.id !== id; });
+      data.deleted[id] = Date.now();
+      if (data.current === id) data.current = null;
+      this.save();
+    },
     profile: function () {
       for (var i = 0; i < data.profiles.length; i++) if (data.profiles[i].id === data.current) return data.profiles[i];
       return null;
@@ -37,13 +49,18 @@
       this.save();
     },
     /* איפה הילד עצר באמצע שיעור: { i: מספר הצעד, m: טעויות עד כה, t: מתי } */
-    resume: function (id, p) { p = p || this.profile(); return (p && p.resume && p.resume[id]) || null; },
+    resume: function (id, p) {
+      p = p || this.profile();
+      var r = p && p.resume && p.resume[id];
+      return r && r.i > 0 ? r : null;
+    },
+    // i = 0 פירושו "אין מקום שמור" (סיימו או התחילו מחדש). נשמר עם זמן, כדי שמקום ישן ממכשיר אחר לא יחזור.
     setResume: function (id, i, m) {
       var p = this.profile();
       if (!p) return;
       p.resume = p.resume || {};
-      if (i > 0) p.resume[id] = { i: i, m: m || 0, t: Date.now() };
-      else delete p.resume[id];
+      if (!(i > 0) && !p.resume[id]) return;
+      p.resume[id] = { i: i > 0 ? i : 0, m: i > 0 ? (m || 0) : 0, t: Date.now() };
       this.save();
     },
     totalStars: function (p) {

@@ -1,0 +1,11 @@
+{
+  "name": "chess-kids",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ממלכת השחמט - לימוד שחמט לילדים, עם שרת סנכרון קטן",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tools/validate.js && node tools/test-store.js && node tools/test-sync.js"
+  }
+}

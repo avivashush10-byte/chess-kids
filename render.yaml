@@ -1,0 +1,17 @@
+# פריסת שרת הסנכרון ב-Render (חינמי). את שלושת הערכים הסודיים מזינים בלוח הבקרה של Render, לא כאן.
+services:
+  - type: web
+    name: chess-kids-sync
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: echo "no build step"
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: ACCESS_CODE
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

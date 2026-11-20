@@ -135,6 +135,11 @@ h1, h2, p { margin: 0; }
 .side { grid-area: side; width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 4px; }
 .actions { grid-area: actions; width: 100%; max-width: 720px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .actions .btn { flex: 1 1 auto; }
+@media (max-width: 480px) {
+  /* בטלפון: שלושת כפתורי המשחק נכנסים בשורה אחת */
+  .actions { gap: 8px; }
+  .actions .btn.ghost { padding: 10px 8px; font-size: 16px; gap: 5px; white-space: nowrap; }
+}
 @media (orientation: landscape) and (min-width: 720px) {
   .stage { grid-template-columns: auto minmax(260px, 420px); grid-template-rows: auto auto 1fr; column-gap: 22px; justify-content: center;
     grid-template-areas: "board bubble" "board side" "board actions"; align-items: start; }
@@ -216,6 +221,12 @@ h1, h2, p { margin: 0; }
 .parent-list li span:first-child { flex: 1; font-size: 18px; }
 .parent-list li span:nth-child(2) { font-size: 14px; color: var(--muted); }
 .modal p.note { font-size: 14px; color: var(--muted); text-align: start; }
+.sync-box { background: #eef7ff; border-radius: 16px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; text-align: start; }
+.sync-box b { font-size: 17px; }
+.sync-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.sync-row .name-input { flex: 1 1 160px; min-width: 0; min-height: 52px; font-size: 18px; direction: ltr; }
+.sync-row .link { font-size: 15px; padding: 6px 2px; }
+.sync-line { font-size: 14px; color: var(--muted); font-weight: 600; text-align: center; max-width: 420px; }
 
 .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 30; }
 .confetti span { position: absolute; top: -40px; animation: fall 2.4s ease-in forwards; }

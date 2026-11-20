@@ -27,7 +27,7 @@
       KC.stageHTML() + '</div>');
 
     var idx = 0, mistakes = 0, step, s, sel = null, moves = [], locked = false, busy = false;
-    var fails = 0, hintLevel = 0, stars = [], sols = [], answer = [], timers = [], lastText = '';
+    var fails = 0, hintLevel = 0, stars = [], back = [], sols = [], answer = [], timers = [], lastText = '';
     var view = new KC.BoardView(root.querySelector('.board'), onTap);
     var actions = root.querySelector('.actions'), textEl = root.querySelector('.say-text');
     var bar = root.querySelector('.progress i'), count = root.querySelector('[data-x="count"]');
@@ -151,7 +151,22 @@
     function setupFree() {
       stars = (step.stars || []).map(C.sq);
       view.setStars(stars);
+      back = [];
+      btn('↩️ מהלך אחורה', 'ghost', undoFree);
       btn('🔄 מהתחלה', 'ghost', function () { show(idx); });
+    }
+
+    function undoFree() {
+      if (busy || locked) return;
+      if (!back.length) { M.sfx('bad'); setText('עוד לא זזתם, אז אין מה להחזיר.'); return; }
+      stopTimers(); // אם נתקענו ועמדנו להתחיל מחדש - מבטלים, כי חזרנו מהלך
+      var h = back.pop();
+      s = h.s; stars = h.stars; sel = null; moves = [];
+      view.clearMarks();
+      view.setBoard(s.board);
+      view.setStars(stars);
+      M.sfx('tap');
+      setText(step.text, true);
     }
 
     function freeMoves(i) {
@@ -174,6 +189,7 @@
 
     function doFree(mv) {
       busy = true;
+      back.push({ s: s, stars: stars.slice() });
       var ns = C.applyMove(s, mv);
       ns.turn = 'w'; ns.ep = null;
       var gotStar = stars.indexOf(mv.to);

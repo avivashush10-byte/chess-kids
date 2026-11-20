@@ -1,3 +1,5 @@
 start.cmd
 node_modules/
 *.log
+data/
+.env
