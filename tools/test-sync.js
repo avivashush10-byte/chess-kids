@@ -173,7 +173,9 @@ const find = (doc, name) => doc.profiles.filter((p) => p.name === name)[0];
 
   // ---------- Upstash מדומה ----------
   const store = new Map();
-  let calls = 0;
+  // lag = מדמה את Upstash האמיתי: קריאה מיד אחרי כתיבה מחזירה ערך ישן, אלא אם נשלח ה-sync token מהתשובה האחרונה
+  const stale = new Map();
+  let calls = 0, lag = false, ver = 0;
   const mock = http.createServer((req, res) => {
     let body = '';
     req.on('data', (c) => { body += c; });
@@ -182,8 +184,14 @@ const find = (doc, name) => doc.profiles.filter((p) => p.name === name)[0];
       res.setHeader('Content-Type', 'application/json');
       if (req.headers.authorization !== 'Bearer good-token') { res.statusCode = 401; return res.end(JSON.stringify({ error: 'WRONGPASS invalid or missing auth token' })); }
       const cmd = JSON.parse(body);
-      if (cmd[0] === 'GET') return res.end(JSON.stringify({ result: store.has(cmd[1]) ? store.get(cmd[1]) : null }));
-      if (cmd[0] === 'SET') { store.set(cmd[1], cmd[2]); return res.end(JSON.stringify({ result: 'OK' })); }
+      const fresh = !lag || req.headers['upstash-sync-token'] === 'v' + ver;
+      if (cmd[0] === 'SET') { stale.set(cmd[1], store.has(cmd[1]) ? store.get(cmd[1]) : null); store.set(cmd[1], cmd[2]); ver++; }
+      res.setHeader('upstash-sync-token', 'v' + ver);
+      if (cmd[0] === 'GET') {
+        const from = fresh || !stale.has(cmd[1]) ? store : stale;
+        return res.end(JSON.stringify({ result: from.has(cmd[1]) && from.get(cmd[1]) !== null ? from.get(cmd[1]) : null }));
+      }
+      if (cmd[0] === 'SET') return res.end(JSON.stringify({ result: 'OK' }));
       res.statusCode = 400; res.end(JSON.stringify({ error: 'ERR unknown command' }));
     });
   });
@@ -228,6 +236,20 @@ const find = (doc, name) => doc.profiles.filter((p) => p.name === name)[0];
     eq(h2.ready, false, 'ענן בלי קוד משפחה: השרת מדווח שאינו מוכן');
     eq((await post(4315, '/api/login', { code: '' })).status, 503, 'ואי אפשר להתחבר');
     eq((await post(4315, '/api/sync', { profiles: [] }, 'local')).status, 503, 'ואי אפשר לסנכרן');
+  });
+
+  await section('ענן: קריאה מיד אחרי כתיבה (העתקים מאחרים ב-Upstash)', async () => {
+    store.clear(); stale.clear(); lag = true;
+    await startServer(4316, UP);
+    const h = await (await fetch('http://127.0.0.1:4316/api/health')).json();
+    eq(h.storageOk, true, 'בדיקת האחסון בעלייה עוברת גם כשהעתקי הקריאה מאחרים');
+    const t = (await post(4316, '/api/login', { code: 'cloud-code' })).body.token;
+    const a = await post(4316, '/api/sync', { profiles: [kid('p100', 'נועה', { stars: { board: 3 } })] }, t);
+    const b = await post(4316, '/api/sync', { profiles: [kid('p200', 'יואב', { stars: { rook: 2 } })] }, t);
+    eq([a.status, b.status], [200, 200], 'שני סנכרונים רצופים מצליחים');
+    eq(b.body.doc.profiles.map((p) => p.name), ['נועה', 'יואב'], 'הסנכרון השני רואה את מה שהראשון כתב רגע קודם');
+    eq(JSON.parse(store.get('chess-kids:family')).profiles.length, 2, 'והכתיבה השנייה לא דרסה את הראשונה');
+    lag = false;
   });
 
   kids.forEach((c) => { try { c.kill(); } catch (e) { /* כבר נסגר */ } });

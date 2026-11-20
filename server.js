@@ -28,12 +28,15 @@ let storageOk = false;
 let boot = null; // בדיקת האחסון שרצה בעליית השרת
 
 /* ---------- אחסון ---------- */
+// Upstash קורא מהעתקים שעלולים לפגר אחרי כתיבה. ה-sync token מהתשובה האחרונה, כשהוא נשלח בבקשה הבאה,
+// מבטיח שהקריאה תראה את הכתיבה שלנו (בלי זה: מיזוג מול נתון ישן, ודריסה של מה שנכתב רגע קודם).
+let upSyncToken = '';
 async function redis(cmd) {
-  const r = await fetch(UP_URL, {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + UP_TOKEN, 'Content-Type': 'application/json' },
-    body: JSON.stringify(cmd)
-  });
+  const headers = { Authorization: 'Bearer ' + UP_TOKEN, 'Content-Type': 'application/json' };
+  if (upSyncToken) headers['upstash-sync-token'] = upSyncToken;
+  const r = await fetch(UP_URL, { method: 'POST', headers: headers, body: JSON.stringify(cmd) });
+  const next = r.headers.get('upstash-sync-token');
+  if (next) upSyncToken = next;
   const j = await r.json().catch(() => null);
   if (!r.ok || !j || j.error) throw new Error('upstash: ' + ((j && j.error) || 'HTTP ' + r.status));
   return j.result;
