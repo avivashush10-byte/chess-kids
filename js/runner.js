@@ -60,6 +60,7 @@
       stopTimers();
       idx = i; step = steps[i]; s = KC.parseFen(step.fen);
       sel = null; moves = []; locked = false; busy = false; fails = 0; hintLevel = 0; stars = [];
+      KC.store.setResume(unit.id, i, mistakes);
       bar.style.width = (i / steps.length * 100) + '%';
       count.textContent = (i + 1) + ' / ' + steps.length;
       view.reset();
@@ -334,6 +335,7 @@
       bar.style.width = '100%';
       var n = mistakes <= 1 ? 3 : mistakes <= 4 ? 2 : 1;
       KC.store.setStars(unit.id, n);
+      KC.store.setResume(unit.id, 0);
       M.sfx('win');
       KC.confetti();
       M.say('כל הכבוד! סיימתם את ' + unit.title + '.');
@@ -348,6 +350,22 @@
     }
 
     KC.mount(root, stopTimers);
-    show(0);
+    var saved = KC.store.resume(unit.id);
+    if (!saved || saved.i >= steps.length) return show(0);
+    // הילד עצר כאן באמצע בפעם הקודמת: שואלים אם להמשיך משם
+    var ask = 'ממשיכים מאיפה שעצרנו?';
+    view.setBoard(KC.parseFen(steps[saved.i].fen).board);
+    bar.style.width = (saved.i / steps.length * 100) + '%';
+    count.textContent = (saved.i + 1) + ' / ' + steps.length;
+    setText(ask);
+    KC.modal('<div class="big-emoji">📖</div><h2>' + ask + '</h2>' +
+      '<p>' + KC.esc(unit.title) + ' · שלב ' + (saved.i + 1) + ' מתוך ' + steps.length + '</p>' +
+      '<div class="row"><button class="btn ghost" data-act="restart">⏮ מההתחלה</button>' +
+      '<button class="btn primary big" data-act="go">ממשיכים ◀</button></div>',
+      function (act, m) {
+        m.close();
+        if (act === 'go') { mistakes = saved.m || 0; show(saved.i); }
+        else show(0);
+      });
   };
 })();

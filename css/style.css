@@ -62,6 +62,7 @@ h1, h2, p { margin: 0; }
 .avatar { font-size: 54px; line-height: 1.1; }
 .pname { font-size: 20px; font-weight: 800; }
 .pstars { font-size: 15px; color: #a86b00; font-weight: 700; }
+.pprog { font-size: 13px; color: var(--muted); font-weight: 600; }
 
 /* ---------- בועת ינשופי ---------- */
 .bubble { display: flex; align-items: center; gap: 10px; background: var(--card); border-radius: 22px; padding: 10px 14px; box-shadow: 0 4px 0 #cfc8ee; }
@@ -81,6 +82,12 @@ h1, h2, p { margin: 0; }
 .menu-card.c-friend { --c: #37b6f6; --d: #1b8fca; }
 .menu-card.c-pawns { --c: #ff6f91; --d: #d94a6e; }
 .menu-card.locked { --c: #c9c6dc; --d: #a9a5c2; }
+.continue-card { grid-column: 1 / -1; display: flex; align-items: center; gap: 14px; padding: 14px 20px; border-radius: 26px; background: var(--yellow); color: #4a3500; box-shadow: 0 7px 0 var(--gold); text-align: start; animation: bounce 1.6s ease-in-out infinite; }
+.continue-card:active { transform: translateY(5px); box-shadow: 0 2px 0 var(--gold); animation: none; }
+.cont-emoji { font-size: 44px; line-height: 1; }
+.cont-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cont-body b { font-size: 24px; font-weight: 900; }
+.cont-body span { font-size: 16px; font-weight: 700; }
 .menu-emoji { font-size: 50px; line-height: 1.1; }
 .menu-title { font-size: 24px; font-weight: 900; }
 .menu-sub { font-size: 15px; font-weight: 600; opacity: .92; }
@@ -101,6 +108,8 @@ h1, h2, p { margin: 0; }
 .node-title { font-size: 16px; font-weight: 800; text-align: center; line-height: 1.2; }
 .node.done .node-icon { background: var(--wc); }
 .node.current { outline: 4px solid var(--wc); outline-offset: 2px; animation: bounce 1.4s ease-in-out infinite; }
+.node { position: relative; }
+.mid-badge { position: absolute; top: -8px; inset-inline-start: -4px; background: var(--yellow); color: #4a3500; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; box-shadow: 0 2px 0 var(--gold); }
 .node.locked { background: #eceaf6; box-shadow: 0 5px 0 #d6d3e6; color: #9a97b3; }
 .node.locked .node-icon { background: #dedbee; }
 .star-row { direction: ltr; font-size: 17px; letter-spacing: 1px; line-height: 1; }

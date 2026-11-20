@@ -30,7 +30,23 @@
   }
   function packOpen(p) { return all() || done(p.requires); }
   function gameOpen() { return all() || worldDone('w2'); }
-  function lessonsDone() { return flat.filter(done).length; }
+  function lessonsDone(p) { return flat.filter(function (id) { return S.stars(id, p) > 0; }).length; }
+
+  /* מה הדבר הבא של הילד הנוכחי: שיעור/חידות שנעצרו באמצע (האחרון שנגעו בו), ואם אין - השיעור הבא במסלול */
+  function nextUp() {
+    var best = null;
+    function consider(unit, open, back) {
+      var r = S.resume(unit.id);
+      if (r && open && r.i < unit.steps.length && (!best || r.t > best.at.t)) best = { unit: unit, at: r, back: back };
+    }
+    flat.forEach(function (id) { consider(CT.lessons[id], lessonOpen(id), mapScreen); });
+    CT.packs.forEach(function (p) { consider(p, packOpen(p), puzzlesScreen); });
+    if (best) return best;
+    for (var i = 0; i < flat.length; i++) {
+      if (lessonOpen(flat[i]) && !done(flat[i])) return { unit: CT.lessons[flat[i]], at: null, back: mapScreen };
+    }
+    return null;
+  }
 
   /* ---------- בחירת שחקן ---------- */
   function profilesScreen() {
@@ -38,7 +54,8 @@
       '<h1>ממלכת השחמט</h1><p class="sub">מי משחק היום?</p></div><div class="profiles">';
     S.data.profiles.forEach(function (p) {
       html += '<button class="profile-card" data-id="' + p.id + '"><span class="avatar">' + p.avatar + '</span>' +
-        '<span class="pname">' + KC.esc(p.name) + '</span><span class="pstars">⭐ ' + S.totalStars(p) + '</span></button>';
+        '<span class="pname">' + KC.esc(p.name) + '</span><span class="pstars">⭐ ' + S.totalStars(p) + '</span>' +
+        '<span class="pprog">' + lessonsDone(p) + ' מתוך ' + flat.length + ' שיעורים</span></button>';
     });
     html += '<button class="profile-card add" data-add="1"><span class="avatar">➕</span><span class="pname">שחקן חדש</span></button></div></div>';
     var root = KC.el(html);
@@ -96,12 +113,16 @@
       { k: 'pawns', emoji: '⚔️', title: 'קרב רגלים', sub: 'משחק קצר וכיפי', open: all() || done('pawn'), cls: 'c-pawns', why: 'קרב הרגלים נפתח אחרי השיעור על הרגלי.' }
     ];
     var hello = 'שלום ' + p.name + '! מה נעשה היום?';
+    var up = nextUp(), started = lessonsDone() > 0 || !!(up && up.at);
+    var upHTML = !up ? '' : '<button class="continue-card" data-continue="1"><span class="cont-emoji">▶️</span><span class="cont-body">' +
+      '<b>' + (started ? 'ממשיכים!' : 'מתחילים!') + '</b><span>' + KC.esc(up.unit.title) +
+      (up.at ? ' · שלב ' + (up.at.i + 1) + ' מתוך ' + up.unit.steps.length : '') + '</span></span></button>';
     var html = '<div class="screen">' +
       '<header class="topbar"><button class="chip" data-go="profiles"><span class="chip-av">' + p.avatar + '</span>' + KC.esc(p.name) + '</button>' +
       '<div class="chip gold">⭐ ' + S.totalStars() + '</div><span class="grow"></span>' +
       '<button class="icon-btn" data-go="settings" aria-label="הגדרות">⚙️</button></header>' +
       '<div class="bubble home-bubble"><div class="owl">🦉</div><p class="say-text">' + KC.esc(hello) + '</p></div>' +
-      '<div class="menu-grid">';
+      '<div class="menu-grid">' + upHTML;
     cards.forEach(function (c) {
       html += '<button class="menu-card ' + c.cls + (c.open ? '' : ' locked') + '" data-card="' + c.k + '">' +
         '<span class="menu-emoji">' + (c.open ? c.emoji : '🔒') + '</span><span class="menu-title">' + c.title + '</span>' +
@@ -114,6 +135,11 @@
       var go = e.target.closest('[data-go]');
       if (go) {
         if (go.getAttribute('data-go') === 'profiles') profilesScreen(); else settingsModal();
+        return;
+      }
+      if (e.target.closest('[data-continue]')) {
+        M.sfx('tap');
+        KC.runLesson(up.unit, { onExit: function () { homeScreen(); }, onDone: up.back });
         return;
       }
       var el = e.target.closest('[data-card]');
@@ -155,8 +181,9 @@
     CT.worlds.forEach(function (w, wi) {
       html += '<section class="world" style="--wc:' + w.color + '"><h2><span>' + w.emoji + '</span> ' + (wi + 1) + '. ' + w.title + '</h2><div class="nodes">';
       w.lessons.forEach(function (id) {
-        var L = CT.lessons[id], open = lessonOpen(id), st = S.stars(id);
+        var L = CT.lessons[id], open = lessonOpen(id), st = S.stars(id), mid = open && S.resume(id);
         html += '<button class="node' + (open ? '' : ' locked') + (st ? ' done' : '') + (id === current ? ' current' : '') + '" data-lesson="' + id + '">' +
+          (mid ? '<span class="mid-badge">באמצע</span>' : '') +
           '<span class="node-icon">' + (!open ? '🔒' : L.icon ? P.svg(L.icon) : L.emoji) + '</span>' +
           '<span class="node-title">' + L.title + '</span>' + KC.starRow(st) + '</button>';
       });
@@ -183,10 +210,10 @@
     var html = '<div class="screen"><header class="topbar"><button class="icon-btn" data-go="home" aria-label="הביתה">🏠</button>' +
       '<div class="title">חידות</div><div class="chip gold">⭐ ' + S.totalStars() + '</div></header><div class="pack-list">';
     CT.packs.forEach(function (p) {
-      var open = packOpen(p);
+      var open = packOpen(p), mid = open && S.resume(p.id);
       html += '<button class="pack' + (open ? '' : ' locked') + '" style="--wc:' + p.color + '" data-pack="' + p.id + '">' +
         '<span class="pack-emoji">' + (open ? p.emoji : '🔒') + '</span><span class="pack-body"><b>' + p.title + '</b>' +
-        '<span>' + (open ? p.steps.length + ' חידות' : 'נפתח אחרי השיעור "' + CT.lessons[p.requires].title + '"') + '</span></span>' + KC.starRow(S.stars(p.id)) + '</button>';
+        '<span>' + (mid ? 'באמצע: חידה ' + (mid.i + 1) + ' מתוך ' + p.steps.length : open ? p.steps.length + ' חידות' :'נפתח אחרי השיעור "' + CT.lessons[p.requires].title + '"') + '</span></span>' + KC.starRow(S.stars(p.id)) + '</button>';
     });
     html += '</div></div>';
     var root = KC.el(html);
@@ -241,7 +268,7 @@
     var voiceText = vs === 'he' ? '✅ נמצא קול עברי במכשיר.' : vs === 'none' ? '⚠️ הדפדפן הזה לא תומך בהקראה.' :
       '⚠️ לא נמצא קול עברי במכשיר. ההסברים יופיעו בכתב בלבד. אפשר להתקין קול עברי בהגדרות המכשיר (המרת טקסט לדיבור).';
     var rows = S.data.profiles.map(function (p) {
-      var n = flat.filter(function (id) { return S.stars(id, p) > 0; }).length;
+      var n = lessonsDone(p);
       return '<li><span>' + p.avatar + ' ' + KC.esc(p.name) + '</span><span>' + n + '/' + flat.length + ' שיעורים · ⭐ ' + S.totalStars(p) + '</span>' +
         '<button class="link danger" data-act="del" data-id="' + p.id + '">מחיקה</button></li>';
     }).join('');
@@ -268,5 +295,6 @@
   }
 
   applySettings();
-  if (S.profile()) homeScreen(); else profilesScreen();
+  // תמיד פותחים ב"מי משחק היום?", כדי שכל ילד ייכנס לשם שלו ולא ימשיך בטעות אצל אחיו
+  profilesScreen();
 })();

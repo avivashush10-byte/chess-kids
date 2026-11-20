@@ -36,6 +36,16 @@
       if (n > (p.stars[id] || 0)) p.stars[id] = n;
       this.save();
     },
+    /* איפה הילד עצר באמצע שיעור: { i: מספר הצעד, m: טעויות עד כה, t: מתי } */
+    resume: function (id, p) { p = p || this.profile(); return (p && p.resume && p.resume[id]) || null; },
+    setResume: function (id, i, m) {
+      var p = this.profile();
+      if (!p) return;
+      p.resume = p.resume || {};
+      if (i > 0) p.resume[id] = { i: i, m: m || 0, t: Date.now() };
+      else delete p.resume[id];
+      this.save();
+    },
     totalStars: function (p) {
       p = p || this.profile();
       var t = 0;
