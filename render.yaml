@@ -1,4 +1,6 @@
-# פריסת שרת הסנכרון ב-Render (חינמי). את שלושת הערכים הסודיים מזינים בלוח הבקרה של Render, לא כאן.
+# פריסת שרת הסנכרון ב-Render (חינמי).
+# פרטי Upstash לא מוקלדים כאן ולא ביד: הם נלקחים בהפניה מהשירות health-app שבאותו חשבון,
+# כך שהאסימון עצמו לא עובר דרך אף אחד ולא נשמר במאגר. את קוד המשפחה מזינים בלוח הבקרה של Render.
 services:
   - type: web
     name: chess-kids-sync
@@ -12,6 +14,12 @@ services:
       - key: ACCESS_CODE
         sync: false
       - key: UPSTASH_REDIS_REST_URL
-        sync: false
+        fromService:
+          name: health-app
+          type: web
+          envVarKey: UPSTASH_REDIS_REST_URL
       - key: UPSTASH_REDIS_REST_TOKEN
-        sync: false
+        fromService:
+          name: health-app
+          type: web
+          envVarKey: UPSTASH_REDIS_REST_TOKEN
