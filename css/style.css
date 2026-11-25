@@ -71,6 +71,11 @@ h1, h2, p { margin: 0; }
 .say-text { flex: 1; font-size: clamp(17px, 2.6vw, 22px); font-weight: 600; line-height: 1.35; min-height: 2.7em; display: flex; align-items: center; }
 .bubble .icon-btn { box-shadow: none; background: #f1eeff; width: 44px; height: 44px; }
 .home-bubble .say-text { min-height: 0; }
+/* סוף משחק: התוצאה מודגשת בבועה, והלוח נשאר גלוי */
+.bubble.end-win { background: #fff5cf; box-shadow: 0 4px 0 #f0d98a; animation: pop .35s ease; }
+.bubble.end-lose { background: #e9f3ff; box-shadow: 0 4px 0 #bcd6f2; animation: pop .35s ease; }
+.bubble.end-draw { background: #eafaf1; box-shadow: 0 4px 0 #b6e3cb; animation: pop .35s ease; }
+.bubble[class*="end-"] .say-text { font-weight: 800; }
 
 /* ---------- בית ---------- */
 .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-block: auto; }

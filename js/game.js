@@ -17,11 +17,11 @@
       '</div>');
 
     var s, hist, last, captured, sel = null, moves = [], busy = false, thinking = false, over = false;
-    var aiTimer = null, endTimer = null, hintLevel = 0, lastText = '', firstTurn = true;
+    var aiTimer = null, hintLevel = 0, lastText = '', firstTurn = true, counted = false;
     var helper = KC.store.data.settings.helper;
     var view = new KC.BoardView(root.querySelector('.board'), onTap);
     var actions = root.querySelector('.actions'), textEl = root.querySelector('.say-text');
-    var helperBtn = root.querySelector('[data-x="helper"]');
+    var helperBtn = root.querySelector('[data-x="helper"]'), bubbleEl = root.querySelector('.bubble');
 
     function setText(t, quiet) { lastText = t; textEl.textContent = t; if (!quiet) M.say(t); }
     function isAI(color) { return !friend && color === 'b'; }
@@ -36,7 +36,7 @@
       var x = e.target.closest('[data-x]');
       if (!x) return;
       var k = x.getAttribute('data-x');
-      if (k === 'exit') { clearTimeout(aiTimer); clearTimeout(endTimer); opts.onExit(); }
+      if (k === 'exit') { clearTimeout(aiTimer); opts.onExit(); }
       else if (k === 'speak') M.say(lastText);
       else if (k === 'helper') {
         helper = !helper;
@@ -53,20 +53,31 @@
       b.addEventListener('click', fn);
       actions.appendChild(b);
     }
-    btn('💡 רמז', 'ghost', hint);
-    btn('↩️ מהלך אחורה', 'ghost', undo);
-    btn('🔄 חדש', 'ghost', function () {
-      if (!hist.length) return;
-      KC.modal('<div class="big-emoji">🔄</div><h2>להתחיל משחק חדש?</h2><div class="row"><button class="btn ghost" data-act="no">לא</button><button class="btn primary" data-act="yes">כן</button></div>',
-        function (act, m) { m.close(); if (act === 'yes') reset(); });
-    });
+    // הכפתורים שמתחת ללוח: בזמן משחק, ואחרים כשהמשחק נגמר (בלי חלון קופץ, כדי שהלוח יישאר גלוי)
+    function drawActions() {
+      actions.innerHTML = '';
+      bubbleEl.classList.remove('end-win', 'end-lose', 'end-draw');
+      if (over) {
+        btn('🔄 משחק חדש', 'primary', reset);
+        btn('↩️ מהלך אחורה', 'ghost', undo);
+        btn('🏠 הביתה', 'ghost', function () { clearTimeout(aiTimer); opts.onExit(); });
+        return;
+      }
+      btn('💡 רמז', 'ghost', hint);
+      btn('↩️ מהלך אחורה', 'ghost', undo);
+      btn('🔄 חדש', 'ghost', function () {
+        if (!hist.length) return;
+        KC.modal('<div class="big-emoji">🔄</div><h2>להתחיל משחק חדש?</h2><div class="row"><button class="btn ghost" data-act="no">לא</button><button class="btn primary" data-act="yes">כן</button></div>',
+          function (act, m) { m.close(); if (act === 'yes') reset(); });
+      });
+    }
 
     function reset() {
       clearTimeout(aiTimer);
-      clearTimeout(endTimer);
       s = C.fromFEN(pawns ? PAWNS : C.START);
       hist = []; last = null; captured = { w: [], b: [] };
-      sel = null; moves = []; busy = false; thinking = false; over = false; firstTurn = true;
+      sel = null; moves = []; busy = false; thinking = false; over = false; firstTurn = true; counted = false;
+      drawActions();
       view.reset(); view.setBoard(s.board);
       drawCaptured();
       startTurn();
@@ -165,8 +176,8 @@
       if (busy) return;
       if (!hist.length) { M.sfx('bad'); setText('עוד לא שיחקתם מהלך, אז אין מה להחזיר.'); return; }
       clearTimeout(aiTimer);
-      clearTimeout(endTimer);
-      thinking = false; over = false;
+      thinking = false;
+      if (over) { over = false; drawActions(); }
       var h = hist.pop();
       if (!friend && h.s.turn !== 'w' && hist.length) h = hist.pop();
       s = h.s; last = h.last; captured = h.cap;
@@ -260,25 +271,31 @@
       deselect();
     }
 
+    // סוף המשחק: הלוח נשאר גלוי עם המהלך האחרון, והתוצאה מופיעה בבועה שמעליו. אין חלון שמכסה את הלוח.
     function end(winner, text) {
       over = true;
-      var emoji, head, body;
-      if (winner === 'draw') { emoji = '🤝'; head = 'תיקו!'; body = text; M.sfx('good'); }
-      else if (friend) { emoji = '🏆'; head = (winner === 'w' ? 'הלבן' : 'השחור') + ' ניצח!'; body = text || 'מט! איזה משחק יפה.'; M.sfx('win'); KC.confetti(); }
+      var emoji, head, body, kind;
+      if (winner === 'draw') { emoji = '🤝'; head = 'תיקו!'; body = text; kind = 'draw'; M.sfx('good'); }
+      else if (friend) { emoji = '🏆'; head = (winner === 'w' ? 'הלבן' : 'השחור') + ' ניצח!'; body = text || 'מט! איזה משחק יפה.'; kind = 'win'; M.sfx('win'); KC.confetti(); }
       else if (winner === 'w') {
-        emoji = '🏆'; head = 'ניצחתם!'; body = text || 'מט! עשיתם מט למחשב. כל הכבוד!';
+        emoji = '🏆'; head = 'ניצחתם!'; body = text || 'מט! עשיתם מט למחשב. כל הכבוד!'; kind = 'win';
         M.sfx('win'); KC.confetti();
-        KC.store.addWin(pawns ? 'pawns' : 'ai' + level);
-      } else { emoji = '💪'; head = 'הפעם המחשב ניצח'; body = (text ? text + ' ' : '') + 'לא נורא, ככה לומדים! ננסה שוב?'; M.sfx('lose'); }
-      setText(head + ' ' + body);
-      endTimer = setTimeout(function () {
-        KC.modal('<div class="big-emoji">' + emoji + '</div><h2>' + head + '</h2><p>' + body + '</p>' +
-          '<div class="row"><button class="btn ghost" data-act="home">🏠 הביתה</button><button class="btn primary big" data-act="again">🔄 משחק חדש</button></div>',
-          function (act, m) { m.close(); if (act === 'again') reset(); else opts.onExit(); });
-      }, 900);
+        if (!counted) { counted = true; KC.store.addWin(pawns ? 'pawns' : 'ai' + level); } // "מהלך אחורה" וניצחון חוזר לא נספר פעמיים
+      } else { emoji = '💪'; head = 'הפעם המחשב ניצח'; body = (text ? text + ' ' : '') + 'לא נורא, ככה לומדים! ננסה שוב?'; kind = 'lose'; M.sfx('lose'); }
+      drawActions();
+      baseMarks(); // המהלך האחרון והמלך שבשח נשארים מסומנים
+      bubbleEl.classList.add('end-' + kind);
+      // מראים מה קרה: במט - חץ מכל כלי שנותן שח אל המלך; בקרב רגלים - הרגלי שהגיע
+      if (winner !== 'draw' && !pawns) {
+        var k = C.findKing(s.board, C.other(winner));
+        view.setArrows(C.attackers(s.board, k, winner).map(function (a) { return [a, k, 'red']; }));
+      } else if (pawns && last && winner !== 'draw') view.mark(last.to, 'good');
+      M.say(head + ' ' + body);
+      lastText = head + ' ' + body;
+      textEl.textContent = emoji + ' ' + lastText;
     }
 
-    KC.mount(root, function () { clearTimeout(aiTimer); clearTimeout(endTimer); });
+    KC.mount(root, function () { clearTimeout(aiTimer); });
     drawHelper();
     reset();
   };
